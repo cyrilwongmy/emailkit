@@ -27,7 +27,7 @@ public class SplashActivity extends AppCompatActivity {
                 EmailKit.Config config = new EmailKit.Config()
                         .setAccount(kv.getString("account"))
                         .setPassword(kv.getString("password"))
-                        .setSMTP(kv.getString("smtp_host"), kv.getInt("smtp_port"), kv.getBoolean("smtp_ssl"))
+                        .setSMTP(kv.getString("smtp_host"), kv.getInt("smtp_port"), kv.getBoolean("smtp_ssl"), kv.getBoolean("smtp_starttls"))
                         .setIMAP(kv.getString("imap_host"), kv.getInt("imap_port"), kv.getBoolean("imap_ssl"));
                 EmailApplication.setConfig(config);
                 startActivity(new Intent(this, MainActivity.class));

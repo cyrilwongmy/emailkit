@@ -198,6 +198,28 @@
                     android:checked="true"/>
 
             </LinearLayout>
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="20dp"
+                    android:text="是否开启starttls"
+                    android:textSize="16sp"
+                    android:textColor="@color/colorAccent"
+                    tools:ignore="HardcodedText" />
+
+                <Switch
+                    android:id="@+id/activity_config_smtp_starttls_switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:checked="true"/>
+
+            </LinearLayout>
 
             <TextView
                 android:layout_width="wrap_content"

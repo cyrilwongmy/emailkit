@@ -1,5 +1,7 @@
 package com.smailnet.emailkit;
 
+import android.util.Log;
+
 /**
  * SMTP服务类，主要负责发送邮件
  */
@@ -17,6 +19,7 @@ public final class SMTPService {
      * @param getSendCallback   发送结果回调
      */
     public void send(Draft draft, EmailKit.GetSendCallback getSendCallback) {
+        Log.d("SMTPService", "Before sending config for starttls: " + config.isSmtpSTARTTLS());
         ObjectManager.getMultiThreadService()
                 .execute(() -> EmailCore.send(config, draft, new EmailKit.GetSendCallback() {
                     @Override

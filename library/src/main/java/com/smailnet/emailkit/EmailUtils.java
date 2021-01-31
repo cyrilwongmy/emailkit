@@ -33,6 +33,7 @@ class EmailUtils {
                 properties.put("mail.smtp.host", smtpHost);
                 properties.put("mail.smtp.port", smtpPort);
                 properties.put("mail.smtp.ssl.enable", config.isSMTPSSL());
+                properties.put("mail.smtp.starttls.enable", config.isSmtpSTARTTLS());
             }
             if (!TextUtils.isEmpty(imapHost) && !TextUtils.isEmpty(imapPort)) {
                 properties.put("mail.imap.auth", true);

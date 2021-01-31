@@ -249,6 +249,7 @@ public final class EmailKit {
         private int imapPort;
         private boolean smtpSSL;
         private boolean imapSSL;
+        private boolean smtpSTARTTLS;
 
         /**
          * 快速配置邮件服务器参数，目前主流邮箱有QQ邮箱，Foxmail、
@@ -306,6 +307,22 @@ public final class EmailKit {
         }
 
         /**
+         * 设置SMTP服务器的主机地址和端口号，相关host和port可以
+         * 到邮箱服务提供商中获取。
+         * @param host  主机地址，例QQ邮箱为：“smtp.qq.com”
+         * @param port  端口号，例QQ邮箱为：465
+         * @param ssl   若端口号支持ssl，则设置为true，否则为false
+         * @param starttls   若端口号支持starttls，则设置为true，否则为false. 这时候ssl要关闭.
+         * @return
+         */
+        public Config setSMTP(String host, int port, boolean ssl, boolean starttls) {
+            this.smtpHost = host;
+            this.smtpPort = port;
+            this.smtpSSL = ssl;
+            this.smtpSTARTTLS = starttls;
+            return this;
+        }
+        /**
          * 设置IMAP服务器的主机地址和端口号，相关host和port可以
          * 到邮箱服务提供商中获取。
          * @param host  主机地址，例QQ邮箱为：“imap.qq.com”
@@ -350,6 +367,10 @@ public final class EmailKit {
 
         boolean isIMAPSSL() {
             return imapSSL;
+        }
+
+        boolean isSmtpSTARTTLS() {
+            return smtpSTARTTLS;
         }
     }
 

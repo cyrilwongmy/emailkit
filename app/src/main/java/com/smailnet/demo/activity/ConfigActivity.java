@@ -16,7 +16,7 @@ import com.smailnet.microkv.MicroKV;
 public class ConfigActivity extends BaseActivity {
 
     private String account, password, nickname, smtpHost, imapHost, smtpPort, imapPort;
-    private boolean smtpSSL, imapSSL;
+    private boolean smtpSSL, imapSSL, smtpSTARTTLS;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +61,7 @@ public class ConfigActivity extends BaseActivity {
         imapPort = ((EditText)findViewById(R.id.activity_config_imap_port_et)).getText().toString();
         smtpSSL = ((Switch) findViewById(R.id.activity_config_smtp_ssl_switch)).isChecked();
         imapSSL = ((Switch) findViewById(R.id.activity_config_imap_ssl_switch)).isChecked();
+        smtpSTARTTLS = ((Switch) findViewById(R.id.activity_config_smtp_starttls_switch)).isChecked();
 
         if (TextUtils.isEmpty(account) || TextUtils.isEmpty(password) || TextUtils.isEmpty(nickname)
                 || TextUtils.isEmpty(smtpHost) || TextUtils.isEmpty(imapHost)
@@ -69,7 +70,7 @@ public class ConfigActivity extends BaseActivity {
             return false;
         } else {
             EmailKit.Config config = new EmailKit.Config()
-                    .setSMTP(smtpHost, Integer.parseInt(smtpPort), smtpSSL)
+                    .setSMTP(smtpHost, Integer.parseInt(smtpPort), smtpSSL, smtpSTARTTLS)
                     .setIMAP(imapHost, Integer.parseInt(imapPort), imapSSL)
                     .setAccount(account)
                     .setPassword(password);
@@ -91,6 +92,7 @@ public class ConfigActivity extends BaseActivity {
                 .setKV("smtp_port", Integer.parseInt(smtpPort))
                 .setKV("imap_port", Integer.parseInt(imapPort))
                 .setKV("smtp_ssl", smtpSSL)
+                .setKV("smtp_starttls", smtpSTARTTLS)
                 .setKV("imap_ssl", imapSSL)
                 .save();
     }
