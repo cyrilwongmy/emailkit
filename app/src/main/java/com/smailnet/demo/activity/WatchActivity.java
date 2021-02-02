@@ -28,6 +28,10 @@ import com.smailnet.emailkit.EmailKit;
 import com.smailnet.emailkit.Folder;
 import com.smailnet.emailkit.Message;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.litepal.LitePal;
 
 import java.io.File;
@@ -79,7 +83,9 @@ public class WatchActivity extends BaseActivity {
         webView = findViewById(R.id.activity_watch_content_wv);
         WebSettings webSettings = webView.getSettings();
         webSettings.setLoadsImagesAutomatically(true);
-        webSettings.setJavaScriptEnabled(true);
+//        webSettings.setJavaScriptEnabled(true); // origin option
+        webSettings.setJavaScriptEnabled(false); // K9 option
+        webSettings.setLoadsImagesAutomatically(true); // K9 option
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setSupportZoom(true);
@@ -101,7 +107,7 @@ public class WatchActivity extends BaseActivity {
 
     @Override
     protected void initData() {
-        if (localMsg.isCached()) {
+        if (localMsg.isCached() ) {
             String text = localMsg.getText();
             String type = localMsg.getType();
             webView.loadDataWithBaseURL(null, adaptScreen(text, type), "text/html", "utf-8", null);
@@ -110,14 +116,24 @@ public class WatchActivity extends BaseActivity {
             folder.getMsg(uid, new EmailKit.GetMsgCallback() {
                 @Override
                 public void onSuccess(Message msg) {
-                    String text = msg.getContent().getMainBody().getText();
+                    setAttachmentList(msg.getContent().getAttachmentList());
+                    String text = setCidImgToLocalPath(msg);
+                    boolean equals = msg.getContent().getMainBody().getText().equals(text);
+                    Log.d("getCid", "afterSetcid origin==now? =>" + equals);
+                    Log.d("getCid", "isContainfileKeyWork in src? => " + text.contains("file:"));
+                    Document doc1 = Jsoup.parse(text);
+                    Elements imgTags1 = doc1.select("img[src]");
+                    for (Element element : imgTags1) {
+                        String src = element.attr("src");//获取src的绝对路径
+                        Log.d("getCid", "onSuccess src: " + src);
+                    }
+
                     String type = msg.getContent().getMainBody().getType();
                     localMsg.setText(text)
                             .setType(type)
                             .setCached(true)
                             .save();
                     webView.loadDataWithBaseURL(null, adaptScreen(text, type), "text/html", "utf-8", null);
-                    setAttachmentList(msg.getContent().getAttachmentList());
                 }
 
                 @Override
@@ -274,6 +290,63 @@ public class WatchActivity extends BaseActivity {
         Intent intent = new Intent().setAction(Intent.ACTION_VIEW);
         intent.setDataAndType(Uri.fromFile(file),fileType);
         startActivity(intent);
+    }
+
+    private String setCidImgToLocalPath(Message msg) {
+        // 1. 获取到text主体 2. 遍历找出img标签部分
+        String text = msg.getContent().getMainBody().getText();
+        List<Message.Content.Attachment> attachmentList = msg.getContent().getAttachmentList();
+
+//          使用jsoup解析获取所有img标签。
+        Document doc = Jsoup.parse(text);
+        Elements imgTags = doc.select("img[src]");
+        int numberOfCid = 0;
+        for (int i = 0; i < imgTags.size(); i++) {
+            Element element = imgTags.get(i);
+            String src = element.attr("src");//获取src的绝对路径
+            Log.d("getCid", "before change image src: " + src);
+            if (src.startsWith("cid:")) {
+                // 3. 如果为cid，并且attach中有这个开头的文件，调用attach的下载方法，
+                //      将cid一长串替换为src本地路径
+                //      将inline image从attachmentList删除
+                Log.d("getCid", "===src===" + src);
+                for (Message.Content.Attachment attachment : attachmentList) {
+                    if (attachment.isInline() && attachment.getCid().equals(src)) {
+                        attachment.download(file12 -> Log.d("getCid", "downloading img......."));
+                        element.attr("src", "file://" + attachment.getFile().getPath());
+                    }
+                }
+//                int semiColIndex = src.indexOf(':');
+//                int atIndex = src.indexOf('@');
+//                if (semiColIndex > 0 && atIndex > 0) {
+//                    String imgFileName = src.substring(semiColIndex + 1, atIndex);
+//                    Log.d("getCid", "===imgFileName===" + imgFileName);
+//                    for (Message.Content.Attachment attachment : attachmentList) {
+//                        Log.d("getCid", "===got filename===" + attachment.getFilename());
+//                        if (attachment.getFilename().equals(imgFileName)) {
+//                            Log.d("getCid", "Find local attachment");
+//                            attachment.download(file12 -> Log.d("getCid", "downloading img......."));
+//                            element.attr("src", "file://" + attachment.getFile().getPath());
+//                        }
+//                        // TODO: when show list, do not add image file
+//                    }
+//                } else {
+////                    for (Message.Content.Attachment attachment : attachmentList) {
+////                        if (attachment.isInline()) {
+////                            attachment.download(file12 -> Log.d("getCid", "downloading img......."));
+////                            element.attr("src", "file://" + attachment.getFile().getPath());
+////                        }
+////                    }
+//                }
+            } else{
+                Log.d("getCid", "http/https image");
+            }
+        }
+        if (text.contains("<html>")){
+            return doc.toString();
+        }else{
+            return doc.select("body>*").toString();
+        }
     }
 
 }

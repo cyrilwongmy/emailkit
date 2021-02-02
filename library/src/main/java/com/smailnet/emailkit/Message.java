@@ -323,6 +323,7 @@ public final class Message {
             return getAttachmentsCallback.get();
         }
 
+
         /**
          * 正文类
          */
@@ -367,8 +368,32 @@ public final class Message {
             private int size;
             private String type;
             private String filename;
+            private boolean isInline;
+            private String cid;
             private File file;
             private LazyLoading lazyLoading;
+
+            public boolean isInline() {
+                return isInline;
+            }
+
+            public String getCid() {
+                return cid;
+            }
+
+            Attachment setInline(boolean inline) {
+                this.isInline = inline;
+                return this;
+            }
+
+            Attachment setCid(String cid) {
+                this.cid = cid;
+                return this;
+            }
+
+            public LazyLoading getLazyLoading() {
+                return lazyLoading;
+            }
 
             Attachment setSize(int size) {
                 this.size = size;
@@ -435,6 +460,7 @@ public final class Message {
                 lazyLoading.loading(downloadCallback);
             }
 
+
             interface LazyLoading {
                 void loading(EmailKit.GetDownloadCallback downloadCallback);
             }
@@ -447,6 +473,10 @@ public final class Message {
 
         interface GetAttachmentsCallback {
             List<Attachment> get();
+        }
+
+        interface GetCidListCallback {
+            List<String> get();
         }
 
     }

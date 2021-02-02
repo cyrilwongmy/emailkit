@@ -129,13 +129,20 @@
 
             </RelativeLayout>
 
-            <WebView
-                android:id="@+id/activity_watch_content_wv"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginStart="20dp"
-                android:layout_marginEnd="20dp"
-                tools:ignore="WebViewLayout" />
+                    <WebView
+                        android:id="@+id/activity_watch_content_wv"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        tools:ignore="WebViewLayout" />
+<!--            <WebView-->
+<!--                android:id="@+id/activity_watch_content_wv"-->
+<!--                android:layout_width="match_parent"-->
+<!--                android:layout_height="match_parent"-->
+<!--                android:layout_marginStart="20dp"-->
+<!--                android:layout_marginEnd="20dp"-->
+<!--                tools:ignore="WebViewLayout" />-->
 
             <ProgressBar
                 android:id="@+id/activity_watch_progress_bar"

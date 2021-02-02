@@ -1,6 +1,7 @@
 package com.smailnet.emailkit;
 
 import android.annotation.SuppressLint;
+import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import java.io.File;
@@ -235,6 +236,7 @@ class Converter {
 
         /**
          * 获取text或html文本内容
+         *
          * @param part
          * @param map
          * @return
@@ -244,7 +246,7 @@ class Converter {
         static HashMap<String, StringBuilder> getTexts(Part part, HashMap<String, StringBuilder> map) throws MessagingException, IOException {
             StringBuilder text = new StringBuilder();
             StringBuilder html = new StringBuilder();
-            if (part.isMimeType(TEXT_PLAIN)){
+            if (part.isMimeType(TEXT_PLAIN)) {
                 map.put(TEXT_PLAIN, text.append(part.getContent()));
             } else if (part.isMimeType(TEXT_HTML)) {
                 map.put(TEXT_HTML, html.append(part.getContent()));
@@ -259,6 +261,7 @@ class Converter {
 
         /**
          * 获取邮件正文
+         *
          * @param message
          * @return
          * @throws IOException
@@ -284,10 +287,15 @@ class Converter {
 
         /**
          * 获取消息中包含附件的部分
+         *
          * @param part
          * @return
          */
-        static List<BodyPart> getAttachmentPart(Part part, List<BodyPart> bodyPartList) throws MessagingException, IOException {
+        static List<BodyPart> getAttachmentPart(Part part,
+                                                List<BodyPart> bodyPartList,
+                                                List<Boolean> isInlineBoolArr,
+                                                List<String> cidArr) throws MessagingException, IOException {
+
             if (part.isMimeType(MULTIPART)) {
                 Multipart multipart = (Multipart) part.getContent();
                 for (int i = 0, count = multipart.getCount(); i < count; i++) {
@@ -295,6 +303,30 @@ class Converter {
                     String disposition = bodyPart.getDisposition();
                     if (disposition != null && (disposition.equals(Part.ATTACHMENT) || disposition.equals(Part.INLINE))) {
                         bodyPartList.add(bodyPart);
+                        String fileName = bodyPart.getFileName();
+                        Log.d("Converter.java.else", "1 I am in if: filename is " + fileName);
+                        String cid = getCid(bodyPart);
+                        if (disposition.equals(Part.INLINE)) {
+                            // handle inline images
+                            // TODO: may need add inline check
+                            if (cid != null) {
+                                isInlineBoolArr.add(true);
+                                cidArr.add(cid);
+                                Log.d("Converter.java:if", "I am in if part getCid inline= " + cid);
+                            }
+                        } else {
+                            isInlineBoolArr.add(false);
+                            cidArr.add("");
+                        }
+                    } else if (bodyPart.isMimeType(MULTIPART)) {
+                        getAttachmentPart(bodyPart, bodyPartList, isInlineBoolArr, cidArr); // important
+                        Log.d("Converter.java.else", "I am in else if");
+                        // TODO: such as pdf attachment
+                    } else {
+                        String fileName = bodyPart.getFileName();
+                        Log.d("Converter.java.else", "3 I am in else: filename is " + fileName);
+                        String cid = getCid(bodyPart);
+                        Log.d("Converter.java.else", "3 I am in else: cid is " + cid);
                     }
                 }
             }
@@ -302,15 +334,49 @@ class Converter {
         }
 
         /**
+         * TODO: find suitable place for this method.
+         * Get inline image cid
+         *
+         * @param p
+         * @return
+         * @throws MessagingException
+         */
+        static String getCid(Part p) throws MessagingException {
+            String content, cid;
+            String[] headers = p.getHeader("Content-Id");
+            if (headers != null && headers.length > 0) {
+                content = headers[0];
+            } else {
+                return null;
+            }
+            if (content.startsWith("<") && content.endsWith(">")) {
+                cid = "cid:" + content.substring(1, content.length() - 1);
+            } else {
+                cid = "cid:" + content;
+            }
+            return cid;
+        }
+
+
+        /**
          * 获取全部附件
+         *
          * @return
          */
         static List<Message.Content.Attachment> getAttachmentList(Part part) throws IOException, MessagingException {
             List<Message.Content.Attachment> attachmentList = new ArrayList<>();
-            List<BodyPart> bodyPartList = getAttachmentPart(part, new ArrayList<>());
-            for (BodyPart bodyPart : bodyPartList) {
+            List<Boolean> isInlineBooleanArray = new ArrayList<>();
+            List<String> cidArr = new ArrayList<>();
+            List<BodyPart> bodyPartList = getAttachmentPart(part, new ArrayList<>(), isInlineBooleanArray, cidArr);
+            for (int i = 0; i < bodyPartList.size(); i++) {
+                BodyPart bodyPart = bodyPartList.get(i);
+//            }
+//            for (BodyPart bodyPart : bodyPartList) {
+//                int i = bodyPartList.indexOf(bodyPart);
                 String filename = TextUtils.decodeText(bodyPart.getFileName());
                 Message.Content.Attachment attachment = new Message.Content.Attachment()
+                        .setInline(isInlineBooleanArray.get(i))
+                        .setCid((isInlineBooleanArray.get(i) ? cidArr.get(i) : ""))
                         .setFilename(filename)
                         .setSize(bodyPart.getSize())
                         .setType(TextUtils.getMimeType(filename))
@@ -347,156 +413,160 @@ class Converter {
             }
             return attachmentList;
         }
-
     }
 
-    /**
-     * 标记状态转换
-     */
-    private static class FlagsUtils {
 
         /**
-         * 获取邮件是否已读和是否被星标的状态
-         * @param internetFlags
-         * @return
+         * 标记状态转换
          */
-        static Message.Flags getFlags(Flags internetFlags) {
-            return new Message.Flags()
-                    .setRead(internetFlags.contains(Flags.Flag.SEEN))
-                    .setStar(internetFlags.contains(Flags.Flag.FLAGGED));
-        }
+        private static class FlagsUtils {
 
-    }
-
-    /**
-     * 消息数据转换
-     */
-    static class MessageUtils {
-
-        /**
-         * 网络消息转本地消息
-         * @param uid
-         * @param message
-         * @return
-         * @throws MessagingException
-         */
-        static Message toLocalMessage(long uid, javax.mail.Message message) throws MessagingException {
-            //邮件主题
-            String subject = message.getSubject();
-            //邮件的发送时间
-            Message.SentDate sentDate = DateUtils.getDateInfo(message.getSentDate());
-            //发件人
-            Message.Sender sender = AddressUtils.getSenderInfo(message.getFrom());
-            //收件人
-            List<Message.Recipients.To> toList = AddressUtils.getToInfoList(message.getRecipients(RecipientType.TO));
-            //抄送人
-            List<Message.Recipients.Cc> ccList = AddressUtils.getCcInfoList(message.getRecipients(RecipientType.CC));
-            //接收人
-            Message.Recipients recipients = new Message.Recipients().setToList(toList).setCcList(ccList);
-            //邮件标记状态
-            Message.Flags flags = FlagsUtils.getFlags(message.getFlags());
-            //邮件内容（正文与附件）
-            Message.Content content = new Message.Content()
-                    .setMainBody(() -> {
-                        try {
-                            Future<Message.Content.MainBody> future = ObjectManager.getMultiThreadService()
-                                    .submit(() -> ContentUtils.getMainBody(message));
-                            return future.get();
-                        } catch (ExecutionException | InterruptedException e) {
-                            e.printStackTrace();
-                            return null;
-                        }
-                    })
-                    .setAttachments(() -> {
-                        try {
-                            Future<List<Message.Content.Attachment>> future = ObjectManager.getMultiThreadService()
-                                    .submit(() -> ContentUtils.getAttachmentList(message));
-                            return future.get();
-                        } catch (ExecutionException | InterruptedException e) {
-                            e.printStackTrace();
-                            return null;
-                        }
-                    });
-            //返回消息
-            return new Message()
-                    .setUID(uid)
-                    .setSubject(subject)
-                    .setSentDate(sentDate)
-                    .setSender(sender)
-                    .setRecipients(recipients)
-                    .setFlags(flags)
-                    .setContent(content);
-        }
-
-        /**
-         * 草稿消息转网络消息
-         * @param config
-         * @param draft
-         * @return
-         */
-        static MimeMessage toInternetMessage(EmailKit.Config config, Draft draft) {
-            try {
-                Session session = EmailUtils.getSession(config);
-                //创建消息对象
-                MimeMessage message = new MimeMessage(session);
-                //收件人
-                message.addRecipients(RecipientType.TO, draft.getTo());
-                //判断是否存在抄送人
-                if (draft.getCc() != null) {
-                    message.addRecipients(RecipientType.CC, draft.getCc());
-                }
-                //判断是否存在密送人
-                if (draft.getBcc() != null) {
-                    message.addRecipients(RecipientType.BCC, draft.getBcc());
-                }
-                //发件人昵称+邮箱地址
-                message.setFrom(new InternetAddress(draft.getNickname() + "<" + config.getAccount() + ">"));
-                //邮件主题
-                message.setSubject(draft.getSubject(), "UTF-8");
-                //邮件发送日期
-                message.setSentDate(new Date());
-                //邮件内容
-                if (draft.getText() != null && draft.getHTML() == null && draft.getAttachment() == null) {
-                    message.setText(draft.getText(), "UTF-8");
-                } else if (draft.getHTML() != null && draft.getAttachment() == null) {
-                    message.setContent(draft.getHTML(), "text/html; charset=UTF-8");
-                } else if (draft.getAttachment() != null) {
-                    //创建多重消息对象
-                    Multipart multipart = new MimeMultipart();
-                    //文本内容
-                    if (draft.getText() != null) {
-                        MimeBodyPart textBodyPart = new MimeBodyPart();
-                        textBodyPart.setText(draft.getText(), "UTF-8");
-                        multipart.addBodyPart(textBodyPart);
-                    }
-                    //HTML内容
-                    if (draft.getHTML() != null) {
-                        MimeBodyPart htmlBodyPart = new MimeBodyPart();
-                        htmlBodyPart.setContent(draft.getHTML(), "text/html; charset=UTF-8");
-                        multipart.addBodyPart(htmlBodyPart);
-                    }
-                    //设置附件
-                    MimeBodyPart attachmentBodyPart = new MimeBodyPart();
-                    File file = draft.getAttachment();
-                    URL url = file.toURI().toURL();
-                    DataSource source = new URLDataSource(url);
-                    attachmentBodyPart.setFileName(TextUtils.encodeText(file.getName()));
-                    attachmentBodyPart.setDataHandler(new DataHandler(source));
-                    multipart.addBodyPart(attachmentBodyPart);
-                    //设置消息对象
-                    message.setContent(multipart);
-                }
-                //保存到已发送文件夹
-                message.setFlag(Flags.Flag.RECENT, true);
-                message.saveChanges();
-                //返回结果
-                return message;
-            } catch (MessagingException | MalformedURLException e) {
-                e.printStackTrace();
-                return null;
+            /**
+             * 获取邮件是否已读和是否被星标的状态
+             *
+             * @param internetFlags
+             * @return
+             */
+            static Message.Flags getFlags(Flags internetFlags) {
+                return new Message.Flags()
+                        .setRead(internetFlags.contains(Flags.Flag.SEEN))
+                        .setStar(internetFlags.contains(Flags.Flag.FLAGGED));
             }
+
         }
 
-    }
+        /**
+         * 消息数据转换
+         */
+        static class MessageUtils {
 
+            /**
+             * 网络消息转本地消息
+             *
+             * @param uid
+             * @param message
+             * @return
+             * @throws MessagingException
+             */
+            static Message toLocalMessage(long uid, javax.mail.Message message) throws MessagingException {
+                //邮件主题
+                String subject = message.getSubject();
+                //邮件的发送时间
+                Message.SentDate sentDate = DateUtils.getDateInfo(message.getSentDate());
+                //发件人
+                Message.Sender sender = AddressUtils.getSenderInfo(message.getFrom());
+                //收件人
+                List<Message.Recipients.To> toList = AddressUtils.getToInfoList(message.getRecipients(RecipientType.TO));
+                //抄送人
+                List<Message.Recipients.Cc> ccList = AddressUtils.getCcInfoList(message.getRecipients(RecipientType.CC));
+                //接收人
+                Message.Recipients recipients = new Message.Recipients().setToList(toList).setCcList(ccList);
+                //邮件标记状态
+                Message.Flags flags = FlagsUtils.getFlags(message.getFlags());
+                //邮件内容（正文与附件）
+                Message.Content content = new Message.Content()
+                        .setMainBody(() -> {
+                            try {
+                                Future<Message.Content.MainBody> future = ObjectManager.getMultiThreadService()
+                                        .submit(() -> ContentUtils.getMainBody(message));
+                                return future.get();
+                            } catch (ExecutionException | InterruptedException e) {
+                                e.printStackTrace();
+                                return null;
+                            }
+                        })
+                        .setAttachments(() -> {
+                            try {
+                                Future<List<Message.Content.Attachment>> future = ObjectManager.getMultiThreadService()
+                                        .submit(() -> ContentUtils.getAttachmentList(message));
+                                return future.get();
+                            } catch (ExecutionException | InterruptedException e) {
+                                e.printStackTrace();
+                                return null;
+                            }
+                        });
+                // TODO: remove? logd
+                Log.d("Converter", "mainbody text in content: " + content.getMainBody().getText());
+                return new Message()
+                        .setUID(uid)
+                        .setSubject(subject)
+                        .setSentDate(sentDate)
+                        .setSender(sender)
+                        .setRecipients(recipients)
+                        .setFlags(flags)
+                        .setContent(content);
+            }
+
+
+            /**
+             * 草稿消息转网络消息
+             *
+             * @param config
+             * @param draft
+             * @return
+             */
+            static MimeMessage toInternetMessage(EmailKit.Config config, Draft draft) {
+                try {
+                    Session session = EmailUtils.getSession(config);
+                    //创建消息对象
+                    MimeMessage message = new MimeMessage(session);
+                    //收件人
+                    message.addRecipients(RecipientType.TO, draft.getTo());
+                    //判断是否存在抄送人
+                    if (draft.getCc() != null) {
+                        message.addRecipients(RecipientType.CC, draft.getCc());
+                    }
+                    //判断是否存在密送人
+                    if (draft.getBcc() != null) {
+                        message.addRecipients(RecipientType.BCC, draft.getBcc());
+                    }
+                    //发件人昵称+邮箱地址
+                    message.setFrom(new InternetAddress(draft.getNickname() + "<" + config.getAccount() + ">"));
+                    //邮件主题
+                    message.setSubject(draft.getSubject(), "UTF-8");
+                    //邮件发送日期
+                    message.setSentDate(new Date());
+                    //邮件内容
+                    if (draft.getText() != null && draft.getHTML() == null && draft.getAttachment() == null) {
+                        message.setText(draft.getText(), "UTF-8");
+                    } else if (draft.getHTML() != null && draft.getAttachment() == null) {
+                        message.setContent(draft.getHTML(), "text/html; charset=UTF-8");
+                    } else if (draft.getAttachment() != null) {
+                        //创建多重消息对象
+                        Multipart multipart = new MimeMultipart();
+                        //文本内容
+                        if (draft.getText() != null) {
+                            MimeBodyPart textBodyPart = new MimeBodyPart();
+                            textBodyPart.setText(draft.getText(), "UTF-8");
+                            multipart.addBodyPart(textBodyPart);
+                        }
+                        //HTML内容
+                        if (draft.getHTML() != null) {
+                            MimeBodyPart htmlBodyPart = new MimeBodyPart();
+                            htmlBodyPart.setContent(draft.getHTML(), "text/html; charset=UTF-8");
+                            multipart.addBodyPart(htmlBodyPart);
+                        }
+                        //设置附件
+                        MimeBodyPart attachmentBodyPart = new MimeBodyPart();
+                        File file = draft.getAttachment();
+                        URL url = file.toURI().toURL();
+                        DataSource source = new URLDataSource(url);
+                        attachmentBodyPart.setFileName(TextUtils.encodeText(file.getName()));
+                        attachmentBodyPart.setDataHandler(new DataHandler(source));
+                        multipart.addBodyPart(attachmentBodyPart);
+                        //设置消息对象
+                        message.setContent(multipart);
+                    }
+                    //保存到已发送文件夹
+                    message.setFlag(Flags.Flag.RECENT, true);
+                    message.saveChanges();
+                    //返回结果
+                    return message;
+                } catch (MessagingException | MalformedURLException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+
+        }
 }
